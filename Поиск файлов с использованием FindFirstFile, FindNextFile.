@@ -1,0 +1,65 @@
+//Поиск файлов по маске с использованием функций FindFirstFile, FindNextFile.
+1. Сначала ищем вложенные папки и сохраняем их
+2. Затем ищем файлы соответствующие маске в текущей директории
+3. Обходим список сохраненных папок и для каждой вызываем функцию поиска рекурсивно
+
+long SearchFFiles(char sPath[], char sMask[], bool bNested)
+{
+	HANDLE handle, handleCopy; //хендлеры поиска
+	WIN32_FIND_DATAA fileInfo; //структура с информацией о найденном обьекте
+	memset(&fileInfo, 0, sizeof(WIN32_FIND_DATAA)); //инициализируем все поля стркутуры нулями
+
+	/*Additional var's*/
+	long gCount = 0;
+	bool flag = true;
+	char sPathCopy[2*MAX_PATH] = "";
+	static char indent[100] = "";
+	static char blank[100] = "";
+	vector<char*> folderList;
+
+	if (sPath[strlen(sPath) - 1] != '\\')
+		strcat(sPath, "\\");
+	strcpy(sPathCopy, sPath);
+
+	//I. Searching for the folders
+	if (bNested)
+	{
+		strcat(sPath, "*");
+		fileInfo.dwFileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+		if ((handle = handleCopy = FindFirstFileA(sPath, &fileInfo)) != INVALID_HANDLE_VALUE) //Если хотя бы один обьект найден
+		{
+			do
+			{
+				//Skipping folders . and ..
+				if (!strcmp(fileInfo.cFileName, ".") || !strcmp(fileInfo.cFileName, ".."))
+					continue;
+				//If a file is folder
+				if (fileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+				{
+					char *fl = new char[MAX_PATH];
+					strcpy(fl, fileInfo.cFileName);
+					folderList.push_back(fl);
+				}
+			} while (FindNextFileA(handle, &fileInfo));
+		}
+	}
+	/*Searching for files by mask*/
+	strcpy(sPath, sPathCopy);
+	strcat(sPath, sMask);
+	if ((handle = handleCopy = FindFirstFileA(sPath, &fileInfo)) != INVALID_HANDLE_VALUE) //Если хотя бы один обьект найден
+	{
+		do
+		{
+			if (!(fileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+			{
+				//If at least one file has been found, the current path will be displayed once
+				if (flag)
+				{
+					cout << "\u00A6\n" << '\u002B' << blank << "Folder contents " << sPathCopy << "\n\u00A6\n";
+					flag = false;
+				}
+				gCount++;
+				cout << '\u00A6' << indent << fileInfo.cFileName << "  " << (fileInfo.nFileSizeHigh * (MAXDWORD + 1)) + fileInfo.nFileSizeLow << " bytes\n";
+			}
+		} while (FindNextFileA(handle, &fileInfo)); //фаза быстрого поиска файлов
+	}
